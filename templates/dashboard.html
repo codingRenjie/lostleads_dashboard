@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>战败分析仪表盘 — Lost Leads Bot</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --card: #1a2332;
+      --text: #e7ecf3;
+      --muted: #8b9cb3;
+      --accent: #3d8bfd;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: ui-sans-serif, system-ui, "Segoe UI", "PingFang SC", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+    header { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-bottom: 1.25rem; }
+    h1 { font-size: 1.25rem; font-weight: 600; margin: 0; }
+    a.nav { color: var(--accent); text-decoration: none; font-size: 0.9rem; }
+    select {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,.12);
+      padding: 0.45rem 0.75rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.85rem; margin-bottom: 1.25rem; }
+    .stat {
+      background: var(--card);
+      border-radius: 10px;
+      padding: 1rem 1.1rem;
+      border: 1px solid rgba(255,255,255,.06);
+    }
+    .stat .k { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .stat .v { font-size: 1.45rem; font-weight: 700; margin-top: 0.25rem; }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem; }
+    @media (max-width: 800px) { .row2 { grid-template-columns: 1fr; } }
+    .panel {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 1rem 1.15rem;
+      border: 1px solid rgba(255,255,255,.06);
+    }
+    .panel h2 { font-size: 0.95rem; margin: 0 0 0.75rem; font-weight: 600; }
+    canvas { max-height: 280px; }
+    .summary { font-size: 0.92rem; color: var(--text); margin-bottom: 1rem; }
+    ul.clean { margin: 0; padding-left: 1.1rem; font-size: 0.9rem; color: var(--muted); }
+    ul.clean li { margin-bottom: 0.35rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th, td { text-align: left; padding: 0.5rem 0.45rem; border-bottom: 1px solid rgba(255,255,255,.08); vertical-align: top; }
+    th { color: var(--muted); font-weight: 500; }
+    .badge { font-size: 0.72rem; padding: 0.15rem 0.45rem; border-radius: 4px; background: rgba(61,139,253,.2); color: #9dc3ff; }
+    .toolbar { margin-bottom: 1rem; }
+    .toolbar a {
+      display: inline-block;
+      margin-right: 0.75rem;
+      padding: 0.45rem 0.85rem;
+      background: rgba(61,139,253,.15);
+      color: var(--accent);
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 0.85rem;
+    }
+    .empty { color: var(--muted); font-size: 0.95rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>战败分析仪表盘</h1>
+      <a class="nav" href="/">返回上传</a>
+      {% if batches %}
+      <form method="get" action="/dashboard">
+        <label>
+          批次
+          <select name="batch_id" onchange="this.form.submit()">
+            {% for b in batches %}
+            <option value="{{ b.id }}" {% if batch and b.id == batch.id %}selected{% endif %}>
+              #{{ b.id }} — {{ b.status }} — {{ b.created_at.strftime('%Y-%m-%d %H:%M') if b.created_at else '' }}
+            </option>
+            {% endfor %}
+          </select>
+        </label>
+      </form>
+      {% endif %}
+    </header>
+
+    {% if not batch %}
+    <p class="empty">暂无批次数据。请先在首页上传文件夹。</p>
+    {% else %}
+
+    <div class="toolbar">
+      <a href="/api/batches/{{ batch.id }}/export.csv">导出本批 CSV</a>
+      <span class="badge">批次 #{{ batch.id }}</span>
+      <span class="badge">{{ batch.status }}</span>
+      {% if batch.error_message %}
+      <span class="badge" style="background:rgba(255,100,100,.2);color:#faa;">{{ batch.error_message[:120] }}{% if batch.error_message and batch.error_message|length > 120 %}…{% endif %}</span>
+      {% endif %}
+    </div>
+
+    <div class="grid">
+      <div class="stat">
+        <div class="k">本批战败条数</div>
+        <div class="v">{{ loss_rows|length }}</div>
+      </div>
+      <div class="stat">
+        <div class="k">涉及顾问</div>
+        <div class="v">{{ consultant_counts|length }}</div>
+      </div>
+      <div class="stat">
+        <div class="k">涉及车型数</div>
+        <div class="v">{{ vehicle_model_distinct }}</div>
+      </div>
+    </div>
+
+    {% if insight and insight.summary %}
+    <div class="panel summary">
+      <strong>概要</strong>：{{ insight.summary }}
+    </div>
+    {% endif %}
+
+    <div class="row2">
+      <div class="panel">
+        <h2>战败原因主题分布</h2>
+        <canvas id="chartThemes"></canvas>
+      </div>
+      <div class="panel">
+        <h2>顾问维度条数</h2>
+        <canvas id="chartConsultants"></canvas>
+      </div>
+    </div>
+
+    <div class="row2">
+      <div class="panel">
+        <h2>可能瓶颈</h2>
+        {% if insight and insight.bottlenecks %}
+        <ul class="clean">
+          {% for x in insight.bottlenecks %}
+          <li>{{ x }}</li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="empty">暂无汇总数据（可能本批无战败记录或分析未完成）。</p>
+        {% endif %}
+      </div>
+      <div class="panel">
+        <h2>销售策略建议</h2>
+        {% if insight and insight.strategies %}
+        <ul class="clean">
+          {% for x in insight.strategies %}
+          <li>{{ x }}</li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="empty">暂无。</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:1rem;">
+      <h2>结构化战败表（本批）</h2>
+      {% if loss_rows %}
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>战败ID</th>
+              <th>日期</th>
+              <th>顾问</th>
+              <th>车型</th>
+              <th>客户关键词</th>
+              <th>战败描述</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in loss_rows %}
+            <tr>
+              <td>{{ r.loss_id }}</td>
+              <td>{{ r.date }}</td>
+              <td>{{ r.consultant }}</td>
+              <td>{{ r.vehicle_model }}</td>
+              <td>{{ r.customer_tags }}</td>
+              <td>{{ r.loss_description }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="empty">本批未抽取到战败记录。</p>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <script>
+    (function () {
+      const themeCounts = {{ theme_counts_json | safe }};
+      const consultantCounts = {{ consultant_counts_json | safe }};
+
+      const labelsT = Object.keys(themeCounts);
+      const dataT = labelsT.map((k) => themeCounts[k]);
+      const ctxT = document.getElementById("chartThemes");
+      if (ctxT && labelsT.length) {
+        new Chart(ctxT, {
+          type: "bar",
+          data: {
+            labels: labelsT,
+            datasets: [{ label: "条数（主题归纳）", data: dataT, backgroundColor: "rgba(61,139,253,0.55)" }],
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: { x: { ticks: { color: "#8b9cb3" } }, y: { ticks: { color: "#8b9cb3" }, beginAtZero: true } },
+          },
+        });
+      } else if (ctxT) {
+        ctxT.replaceWith(Object.assign(document.createElement("p"), { className: "empty", textContent: "暂无主题分布数据。" }));
+      }
+
+      const labelsC = Object.keys(consultantCounts);
+      const dataC = labelsC.map((k) => consultantCounts[k]);
+      const ctxC = document.getElementById("chartConsultants");
+      if (ctxC && labelsC.length) {
+        new Chart(ctxC, {
+          type: "doughnut",
+          data: {
+            labels: labelsC,
+            datasets: [{ data: dataC, backgroundColor: ["#3d8bfd","#3ecf8e","#f0c14b","#c084fc","#f472b6","#22d3ee"] }],
+          },
+          options: { responsive: true, plugins: { legend: { position: "bottom", labels: { color: "#8b9cb3" } } } },
+        });
+      } else if (ctxC) {
+        ctxC.replaceWith(Object.assign(document.createElement("p"), { className: "empty", textContent: "暂无顾问分布。" }));
+      }
+    })();
+  </script>
+</body>
+</html>
