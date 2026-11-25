@@ -7,11 +7,13 @@ from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.config import PROJECT_ROOT, settings
+from app.day_views import build_day_groups, load_day_view
 from app.db import Batch, BatchInsight, FileError, Loss, init_db
 from app.db import SessionLocal as DbSessionLocal
 from app.pipeline import process_batch_files, safe_filename
@@ -42,6 +44,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="老船长", lifespan=lifespan)
+app.mount("/static", StaticFiles(directory=str(PROJECT_ROOT / "static")), name="static")
 
 
 def _require_keys() -> None:
@@ -73,76 +76,85 @@ async def index(request: Request):
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
-async def dashboard(request: Request, batch_id: int | None = None):
+async def dashboard(
+    request: Request,
+    day: str | None = None,
+    section: str = "analysis",
+):
+    """
+    day: YYYY-MM-DD（上海时区，按批次 created_at）；缺省为最新有数据的一天。
+    section: analysis | strategy | data | history
+    """
+    if section not in {"analysis", "strategy", "data", "history"}:
+        section = "analysis"
+
     db = DbSessionLocal()
     try:
-        batches = db.execute(select(Batch).order_by(Batch.id.desc()).limit(50)).scalars().all()
-        if not batches:
+        groups = build_day_groups(db)
+        latest_day = groups["latest_day"]
+        day_summaries = groups["day_summaries"]
+        by_day = groups["by_day"]
+
+        if not latest_day:
             return templates.TemplateResponse(
                 request,
                 "dashboard.html",
                 {
-                    "batches": [],
-                    "batch": None,
+                    "section": section,
+                    "latest_day": None,
+                    "view_day": None,
+                    "is_today": True,
+                    "day_label": "",
+                    "history_summaries": [],
                     "loss_rows": [],
                     "insight": None,
-                    "consultant_counts": {},
                     "consultant_counts_json": "{}",
                     "theme_counts_json": "{}",
                     "vehicle_model_distinct": 0,
+                    "consultant_count": 0,
+                    "batch_count": 0,
+                    "batch_ids": [],
+                    "status": "empty",
+                    "export_day": None,
                 },
             )
-        if batch_id is None:
-            batch_id = batches[0].id
-        batch = db.get(Batch, batch_id)
-        if not batch:
-            batch = batches[0]
-            batch_id = batch.id
-        losses = (
-            db.execute(select(Loss).where(Loss.batch_id == batch_id).order_by(Loss.loss_id))
-            .scalars()
-            .all()
-        )
-        insight_row = db.get(BatchInsight, batch_id)
-        insight = None
-        if insight_row:
-            try:
-                insight = json.loads(insight_row.payload_json)
-            except json.JSONDecodeError:
-                insight = {}
-        consultant_counts: dict[str, int] = {}
-        for row in losses:
-            consultant_counts[row.consultant] = consultant_counts.get(row.consultant, 0) + 1
-        loss_rows: list[dict] = []
-        for r in losses:
-            tags = json.loads(r.customer_tags or "[]")
-            tags_str = ",".join(tags) if isinstance(tags, list) else str(tags)
-            loss_rows.append(
-                {
-                    "loss_id": r.loss_id,
-                    "date": r.date,
-                    "consultant": r.consultant,
-                    "vehicle_model": r.vehicle_model,
-                    "customer_tags": tags_str,
-                    "loss_description": r.loss_description,
-                }
-            )
-        vehicle_model_distinct = len({r.vehicle_model for r in losses})
-        theme_counts = (insight or {}).get("theme_counts") or {}
-        if not isinstance(theme_counts, dict):
-            theme_counts = {}
+
+        # 历史列表中选中某日后进入三栏；点「当日*」则回到最新日
+        if section == "history":
+            view_day = latest_day
+            is_today = True
+        elif day and day in by_day:
+            view_day = day
+            is_today = day == latest_day
+        else:
+            view_day = latest_day
+            is_today = True
+
+        view = load_day_view(db, view_day, by_day)
+        history_summaries = [s for s in day_summaries if not s["is_latest"]]
+
         return templates.TemplateResponse(
             request,
             "dashboard.html",
             {
-                "batches": batches,
-                "batch": batch,
-                "loss_rows": loss_rows,
-                "insight": insight,
-                "consultant_counts": consultant_counts,
-                "consultant_counts_json": json.dumps(consultant_counts, ensure_ascii=False),
-                "theme_counts_json": json.dumps(theme_counts, ensure_ascii=False),
-                "vehicle_model_distinct": vehicle_model_distinct,
+                "section": section,
+                "latest_day": latest_day,
+                "view_day": view_day,
+                "is_today": is_today,
+                "day_label": view["day_label"],
+                "history_summaries": history_summaries,
+                "loss_rows": view["loss_rows"],
+                "insight": view["insight"],
+                "consultant_counts_json": json.dumps(
+                    view["consultant_counts"], ensure_ascii=False
+                ),
+                "theme_counts_json": json.dumps(view["theme_counts"], ensure_ascii=False),
+                "vehicle_model_distinct": view["vehicle_model_distinct"],
+                "consultant_count": len(view["consultant_counts"]),
+                "batch_count": view["batch_count"],
+                "batch_ids": view["batch_ids"],
+                "status": view["status"],
+                "export_day": view_day,
             },
         )
     finally:
@@ -291,6 +303,31 @@ async def process_upload(
     }
 
 
+def _losses_to_csv_response(rows: list[Loss], filename: str) -> StreamingResponse:
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["战败ID", "日期", "顾问名称", "车型", "客户关键词", "战败描述"])
+    for r in rows:
+        tags = json.loads(r.customer_tags or "[]")
+        tag_str = ",".join(tags) if isinstance(tags, list) else str(tags)
+        w.writerow(
+            [
+                r.loss_id,
+                r.date,
+                r.consultant,
+                r.vehicle_model,
+                tag_str,
+                r.loss_description,
+            ]
+        )
+    data = "\ufeff" + buf.getvalue()
+    return StreamingResponse(
+        iter([data.encode("utf-8")]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @app.get("/api/batches/{batch_id}/export.csv")
 async def export_csv(batch_id: int):
     db = DbSessionLocal()
@@ -303,29 +340,28 @@ async def export_csv(batch_id: int):
             .scalars()
             .all()
         )
-        buf = io.StringIO()
-        w = csv.writer(buf)
-        w.writerow(["战败ID", "日期", "顾问名称", "车型", "客户关键词", "战败描述"])
-        for r in rows:
-            tags = json.loads(r.customer_tags or "[]")
-            tag_str = ",".join(tags) if isinstance(tags, list) else str(tags)
-            w.writerow(
-                [
-                    r.loss_id,
-                    r.date,
-                    r.consultant,
-                    r.vehicle_model,
-                    tag_str,
-                    r.loss_description,
-                ]
-            )
-        data = "\ufeff" + buf.getvalue()
-        return StreamingResponse(
-            iter([data.encode("utf-8")]),
-            media_type="text/csv; charset=utf-8",
-            headers={
-                "Content-Disposition": f'attachment; filename="losses_batch_{batch_id}.csv"',
-            },
+        return _losses_to_csv_response(rows, f"losses_batch_{batch_id}.csv")
+    finally:
+        db.close()
+
+
+@app.get("/api/days/{day}/export.csv")
+async def export_day_csv(day: str):
+    """按上海时区日历日合并导出该日全部批次的战败行。"""
+    db = DbSessionLocal()
+    try:
+        groups = build_day_groups(db)
+        if day not in groups["by_day"]:
+            raise HTTPException(404, "该日无批次数据")
+        view = load_day_view(db, day, groups["by_day"])
+        batch_ids = view["batch_ids"]
+        rows = (
+            db.execute(select(Loss).where(Loss.batch_id.in_(batch_ids)).order_by(Loss.loss_id))
+            .scalars()
+            .all()
+            if batch_ids
+            else []
         )
+        return _losses_to_csv_response(rows, f"losses_day_{day}.csv")
     finally:
         db.close()

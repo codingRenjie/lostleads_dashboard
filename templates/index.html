@@ -4,127 +4,73 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>老船长 — 战败客户分析</title>
-  <style>
-    :root {
-      --bg: #0f1419;
-      --card: #1a2332;
-      --text: #e7ecf3;
-      --muted: #8b9cb3;
-      --accent: #3d8bfd;
-      --ok: #3ecf8e;
-      --warn: #f0c14b;
-    }
-    * { box-sizing: border-box; }
-    body {
-      font-family: ui-sans-serif, system-ui, "Segoe UI", "PingFang SC", sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      margin: 0;
-      min-height: 100vh;
-      line-height: 1.5;
-    }
-    .wrap { max-width: 720px; margin: 0 auto; padding: 2rem 1.25rem; }
-    .page-head {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      margin-bottom: 0.35rem;
-    }
-    .brand-logo {
-      width: 56px;
-      height: 56px;
-      border-radius: 12px;
-      object-fit: contain;
-      flex-shrink: 0;
-      background: rgba(255,255,255,.04);
-      border: 1px solid rgba(255,255,255,.08);
-    }
-    .brand-block { min-width: 0; }
-    .app-name {
-      font-size: 0.78rem;
-      font-weight: 600;
-      letter-spacing: 0.14em;
-      color: var(--accent);
-      margin: 0 0 0.2rem;
-    }
-    h1 { font-size: 1.35rem; font-weight: 600; margin: 0; line-height: 1.25; }
-    p.lead { color: var(--muted); margin: 0.85rem 0 1.5rem; font-size: 0.95rem; }
-    .card {
-      background: var(--card);
-      border-radius: 12px;
-      padding: 1.25rem 1.5rem;
-      border: 1px solid rgba(255,255,255,.06);
-    }
-    label.file-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.65rem 1rem;
-      background: var(--accent);
-      color: #fff;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: 500;
-      font-size: 0.9rem;
-    }
-    label.file-btn:hover { filter: brightness(1.08); }
-    input[type="file"] { display: none; }
-    .meta { margin-top: 1rem; font-size: 0.85rem; color: var(--muted); }
-    .actions { margin-top: 1.25rem; display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
-    button.primary {
-      background: var(--ok);
-      color: #0a1628;
-      border: none;
-      padding: 0.6rem 1.1rem;
-      border-radius: 8px;
-      font-weight: 600;
-      cursor: pointer;
-      font-size: 0.9rem;
-    }
-    button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
-    a.link { color: var(--accent); text-decoration: none; font-size: 0.9rem; }
-    a.link:hover { text-decoration: underline; }
-    #status {
-      margin-top: 1.25rem;
-      padding: 0.85rem 1rem;
-      border-radius: 8px;
-      background: rgba(0,0,0,.25);
-      font-size: 0.88rem;
-      white-space: pre-wrap;
-      display: none;
-    }
-    #status.show { display: block; }
-    #status.processing { border-left: 3px solid var(--warn); }
-    #status.done { border-left: 3px solid var(--ok); }
-    #status.err { border-left: 3px solid #f66; }
-    ul.files { margin: 0.5rem 0 0; padding-left: 1.1rem; color: var(--muted); font-size: 0.82rem; max-height: 140px; overflow: auto; }
-  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/app.css" />
 </head>
 <body>
-  <div class="wrap">
-    <header class="page-head">
-      <img class="brand-logo" src="/logo.png" width="56" height="56" alt="老船长" />
-      <div class="brand-block">
-        <p class="app-name">老船长</p>
-        <h1>战败客户分析</h1>
-      </div>
-    </header>
-    <p class="lead">将当天企微群里导出的音频文件夹上传，老船长将会识别出战败记录并做洞察分析。</p>
+  <div class="app-shell">
+    <aside class="side-rail" aria-label="主导航">
+      <a href="/" title="老船长">
+        <img class="side-logo" src="/logo.png" width="48" height="48" alt="老船长" />
+      </a>
+      <nav class="side-nav">
+        <a class="active" href="/" title="上传">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V5M8 9l4-4 4 4M5 19h14"/></svg>
+          上传
+        </a>
+        <a href="/dashboard?section=analysis" title="当日分析">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5M4 19h16M8 15v-4M12 15V8M16 15v-6"/></svg>
+          分析
+        </a>
+        <a href="/dashboard?section=strategy" title="销售策略">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l2.2 4.5L19 9l-3.5 3.4.8 4.8L12 15.2 7.7 17.2l.8-4.8L5 9l4.8-1.5L12 3z"/></svg>
+          策略
+        </a>
+        <a href="/dashboard?section=data" title="当日数据">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+          数据
+        </a>
+        <a href="/dashboard?section=history" title="历史数据">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg>
+          历史
+        </a>
+      </nav>
+    </aside>
 
-    <div class="card">
-      <label class="file-btn">
-        <input type="file" id="folder" webkitdirectory multiple accept="audio/*,.mp3,.wav,.m4a,.webm,.mp4,.ogg,.flac" />
-        选择文件夹
-      </label>
-      <p class="meta">文件名需含顾问名，建议使用 <code>陈放_01.mp3</code> 形式。日期优先使用浏览器提供的文件修改时间。</p>
-      <ul class="files" id="fileList"></ul>
-      <div class="actions">
-        <button type="button" class="primary" id="submitBtn" disabled>开始处理</button>
-        <a class="link" href="/dashboard">打开仪表盘</a>
+    <main class="main-panel">
+      <div class="topbar">
+        <div class="brand-lockup">
+          <img src="/logo.png" width="44" height="44" alt="" />
+          <div>
+            <p class="name">老船长</p>
+            <h1>战败客户分析</h1>
+          </div>
+        </div>
+        <div class="top-actions">
+          <a class="btn btn-soft" href="/dashboard">打开仪表盘</a>
+        </div>
       </div>
-      <div id="status"></div>
-    </div>
+
+      <p class="lead">将当天企微群里导出的音频文件夹上传，老船长将会识别出战败记录并做洞察分析。</p>
+
+      <div class="upload-card">
+        <label class="btn btn-primary" style="cursor:pointer;">
+          <input type="file" id="folder" webkitdirectory multiple accept="audio/*,.mp3,.wav,.m4a,.webm,.mp4,.ogg,.flac" style="display:none;" />
+          选择文件夹
+        </label>
+        <p class="meta">文件名需含顾问名，建议使用 <code>陈放_01.mp3</code> 形式。日期优先使用浏览器提供的文件修改时间。</p>
+        <ul class="files" id="fileList"></ul>
+        <div class="actions">
+          <button type="button" class="btn btn-primary" id="submitBtn" disabled>开始处理</button>
+          <a class="btn btn-soft" href="/dashboard">打开仪表盘</a>
+        </div>
+        <div id="status"></div>
+      </div>
+    </main>
   </div>
+
   <script>
     const folderInput = document.getElementById("folder");
     const submitBtn = document.getElementById("submitBtn");
@@ -154,7 +100,6 @@
     }
 
     async function pollBatch(id) {
-      // 每条约需：ffmpeg + 讯飞分帧 + 1～2 次 Kimi；16 条常远超 10 分钟，故上限约 60 分钟
       const maxTries = 3600;
       for (let i = 0; i < maxTries; i++) {
         const r = await fetch("/api/batches/" + id);

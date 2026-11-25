@@ -3,247 +3,288 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>战败分析仪表盘 — Lost Leads Bot</title>
+  <title>老船长 — 仪表盘</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/app.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <style>
-    :root {
-      --bg: #0f1419;
-      --card: #1a2332;
-      --text: #e7ecf3;
-      --muted: #8b9cb3;
-      --accent: #3d8bfd;
-    }
-    * { box-sizing: border-box; }
-    body {
-      font-family: ui-sans-serif, system-ui, "Segoe UI", "PingFang SC", sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      margin: 0;
-      min-height: 100vh;
-      line-height: 1.5;
-    }
-    .wrap { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
-    header { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-bottom: 1.25rem; }
-    h1 { font-size: 1.25rem; font-weight: 600; margin: 0; }
-    a.nav { color: var(--accent); text-decoration: none; font-size: 0.9rem; }
-    select {
-      background: var(--card);
-      color: var(--text);
-      border: 1px solid rgba(255,255,255,.12);
-      padding: 0.45rem 0.75rem;
-      border-radius: 8px;
-      font-size: 0.9rem;
-    }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.85rem; margin-bottom: 1.25rem; }
-    .stat {
-      background: var(--card);
-      border-radius: 10px;
-      padding: 1rem 1.1rem;
-      border: 1px solid rgba(255,255,255,.06);
-    }
-    .stat .k { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
-    .stat .v { font-size: 1.45rem; font-weight: 700; margin-top: 0.25rem; }
-    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem; }
-    @media (max-width: 800px) { .row2 { grid-template-columns: 1fr; } }
-    .panel {
-      background: var(--card);
-      border-radius: 12px;
-      padding: 1rem 1.15rem;
-      border: 1px solid rgba(255,255,255,.06);
-    }
-    .panel h2 { font-size: 0.95rem; margin: 0 0 0.75rem; font-weight: 600; }
-    canvas { max-height: 280px; }
-    .summary { font-size: 0.92rem; color: var(--text); margin-bottom: 1rem; }
-    ul.clean { margin: 0; padding-left: 1.1rem; font-size: 0.9rem; color: var(--muted); }
-    ul.clean li { margin-bottom: 0.35rem; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-    th, td { text-align: left; padding: 0.5rem 0.45rem; border-bottom: 1px solid rgba(255,255,255,.08); vertical-align: top; }
-    th { color: var(--muted); font-weight: 500; }
-    .badge { font-size: 0.72rem; padding: 0.15rem 0.45rem; border-radius: 4px; background: rgba(61,139,253,.2); color: #9dc3ff; }
-    .toolbar { margin-bottom: 1rem; }
-    .toolbar a {
-      display: inline-block;
-      margin-right: 0.75rem;
-      padding: 0.45rem 0.85rem;
-      background: rgba(61,139,253,.15);
-      color: var(--accent);
-      border-radius: 8px;
-      text-decoration: none;
-      font-size: 0.85rem;
-    }
-    .empty { color: var(--muted); font-size: 0.95rem; }
-  </style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <h1>战败分析仪表盘</h1>
-      <a class="nav" href="/">返回上传</a>
-      {% if batches %}
-      <form method="get" action="/dashboard">
-        <label>
-          批次
-          <select name="batch_id" onchange="this.form.submit()">
-            {% for b in batches %}
-            <option value="{{ b.id }}" {% if batch and b.id == batch.id %}selected{% endif %}>
-              #{{ b.id }} — {{ b.status }} — {{ b.created_at.strftime('%Y-%m-%d %H:%M') if b.created_at else '' }}
-            </option>
-            {% endfor %}
-          </select>
-        </label>
-      </form>
-      {% endif %}
-    </header>
+  {% set day_suffix = ('&day=' ~ view_day) if (view_day and not is_today) else '' %}
+  <div class="app-shell">
+    <aside class="side-rail" aria-label="主导航">
+      <a href="/" title="老船长">
+        <img class="side-logo" src="/logo.png" width="48" height="48" alt="老船长" />
+      </a>
+      <nav class="side-nav">
+        <a class="{{ 'active' if section == 'analysis' else '' }}" href="/dashboard?section=analysis{{ day_suffix }}" title="分析">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5M4 19h16M8 15v-4M12 15V8M16 15v-6"/></svg>
+          分析
+        </a>
+        <a class="{{ 'active' if section == 'strategy' else '' }}" href="/dashboard?section=strategy{{ day_suffix }}" title="策略">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l2.2 4.5L19 9l-3.5 3.4.8 4.8L12 15.2 7.7 17.2l.8-4.8L5 9l4.8-1.5L12 3z"/></svg>
+          策略
+        </a>
+        <a class="{{ 'active' if section == 'data' else '' }}" href="/dashboard?section=data{{ day_suffix }}" title="数据">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+          数据
+        </a>
+        <a class="{{ 'active' if section == 'history' else '' }}" href="/dashboard?section=history" title="历史数据">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg>
+          历史
+        </a>
+      </nav>
+    </aside>
 
-    {% if not batch %}
-    <p class="empty">暂无批次数据。请先在首页上传文件夹。</p>
-    {% else %}
+    <main class="main-panel">
+      <div class="topbar">
+        <div class="brand-lockup">
+          <img src="/logo.png" width="44" height="44" alt="" />
+          <div>
+            <p class="name">老船长</p>
+            <h1>
+              {% if section == 'history' %}
+                历史数据
+              {% elif section == 'strategy' %}
+                {% if is_today %}销售策略{% else %}该日策略{% endif %}
+              {% elif section == 'data' %}
+                {% if is_today %}当日数据{% else %}该日数据{% endif %}
+              {% else %}
+                {% if is_today %}当日分析{% else %}该日分析{% endif %}
+              {% endif %}
+            </h1>
+          </div>
+        </div>
+        <div class="top-actions">
+          {% if export_day and section != 'history' %}
+          <a class="btn btn-soft" href="/api/days/{{ export_day }}/export.csv">导出 CSV</a>
+          {% endif %}
+          <a class="btn btn-primary" href="/">上传战报</a>
+        </div>
+      </div>
 
-    <div class="toolbar">
-      <a href="/api/batches/{{ batch.id }}/export.csv">导出本批 CSV</a>
-      <span class="badge">批次 #{{ batch.id }}</span>
-      <span class="badge">{{ batch.status }}</span>
-      {% if batch.error_message %}
-      <span class="badge" style="background:rgba(255,100,100,.2);color:#faa;">{{ batch.error_message[:120] }}{% if batch.error_message and batch.error_message|length > 120 %}…{% endif %}</span>
-      {% endif %}
-    </div>
-
-    <div class="grid">
-      <div class="stat">
-        <div class="k">本批战败条数</div>
-        <div class="v">{{ loss_rows|length }}</div>
-      </div>
-      <div class="stat">
-        <div class="k">涉及顾问</div>
-        <div class="v">{{ consultant_counts|length }}</div>
-      </div>
-      <div class="stat">
-        <div class="k">涉及车型数</div>
-        <div class="v">{{ vehicle_model_distinct }}</div>
-      </div>
-    </div>
-
-    {% if insight and insight.summary %}
-    <div class="panel summary">
-      <strong>概要</strong>：{{ insight.summary }}
-    </div>
-    {% endif %}
-
-    <div class="row2">
-      <div class="panel">
-        <h2>战败原因主题分布</h2>
-        <canvas id="chartThemes"></canvas>
-      </div>
-      <div class="panel">
-        <h2>顾问维度条数</h2>
-        <canvas id="chartConsultants"></canvas>
-      </div>
-    </div>
-
-    <div class="row2">
-      <div class="panel">
-        <h2>可能瓶颈</h2>
-        {% if insight and insight.bottlenecks %}
-        <ul class="clean">
-          {% for x in insight.bottlenecks %}
-          <li>{{ x }}</li>
-          {% endfor %}
-        </ul>
-        {% else %}
-        <p class="empty">暂无汇总数据（可能本批无战败记录或分析未完成）。</p>
-        {% endif %}
-      </div>
-      <div class="panel">
-        <h2>销售策略建议</h2>
-        {% if insight and insight.strategies %}
-        <ul class="clean">
-          {% for x in insight.strategies %}
-          <li>{{ x }}</li>
-          {% endfor %}
-        </ul>
-        {% else %}
-        <p class="empty">暂无。</p>
-        {% endif %}
-      </div>
-    </div>
-
-    <div class="panel" style="margin-top:1rem;">
-      <h2>结构化战败表（本批）</h2>
-      {% if loss_rows %}
-      <div style="overflow-x:auto;">
-        <table>
-          <thead>
-            <tr>
-              <th>战败ID</th>
-              <th>日期</th>
-              <th>顾问</th>
-              <th>车型</th>
-              <th>客户关键词</th>
-              <th>战败描述</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for r in loss_rows %}
-            <tr>
-              <td>{{ r.loss_id }}</td>
-              <td>{{ r.date }}</td>
-              <td>{{ r.consultant }}</td>
-              <td>{{ r.vehicle_model }}</td>
-              <td>{{ r.customer_tags }}</td>
-              <td>{{ r.loss_description }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+      {% if not latest_day %}
+        <p class="muted">暂无批次数据。请先在上传页选择企微导出的音频文件夹。</p>
       {% else %}
-      <p class="empty">本批未抽取到战败记录。</p>
+
+      {% if not is_today and section != 'history' %}
+      <div class="banner">
+        正在查看历史日：<strong>{{ day_label }}</strong>。
+        <a href="/dashboard?section=analysis">返回当日</a>
+        ·
+        <a href="/dashboard?section=history">历史列表</a>
+      </div>
       {% endif %}
-    </div>
-    {% endif %}
+
+      {% if section == 'history' %}
+        {% if history_summaries %}
+        <div class="history-list">
+          {% for h in history_summaries %}
+          <a class="history-item" href="/dashboard?day={{ h.day }}&section=analysis">
+            <div>
+              <div class="t">{{ h.label }}</div>
+              <div class="s">{{ h.batch_count }} 个批次 · {{ h.loss_count }} 条战败</div>
+            </div>
+            <span class="badge">查看分析</span>
+          </a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">历史数据为空。当前仅有最新一日（{{ day_label }}）的数据；跨日上传后，更早的日期会出现在这里。</p>
+        {% endif %}
+
+      {% elif section == 'strategy' %}
+        <div class="card">
+          <h2>销售策略建议</h2>
+          {% if insight and insight.strategies %}
+          <ul class="clean">
+            {% for x in insight.strategies %}
+            <li>{{ x }}</li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="muted">暂无策略建议（可能该日无战败记录或分析未完成）。</p>
+          {% endif %}
+        </div>
+
+      {% elif section == 'data' %}
+        <div class="grid-stats">
+          <div class="stat-card">
+            <div class="k">战败条数</div>
+            <div class="v">{{ loss_rows|length }}</div>
+          </div>
+          <div class="stat-card">
+            <div class="k">涉及顾问</div>
+            <div class="v">{{ consultant_count }}</div>
+          </div>
+          <div class="stat-card">
+            <div class="k">涉及车型</div>
+            <div class="v">{{ vehicle_model_distinct }}</div>
+          </div>
+          <div class="stat-card">
+            <div class="k">合并批次数</div>
+            <div class="v">{{ batch_count }}</div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>结构化战败表</h2>
+          <p class="muted" style="margin-top:-0.35rem;margin-bottom:0.75rem;">
+            {{ day_label }} · 状态 {{ status }}
+            {% if batch_ids %} · 批次 {{ batch_ids|join(', ') }}{% endif %}
+          </p>
+          {% if loss_rows %}
+          <div class="table-wrap">
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>战败ID</th>
+                  <th>日期</th>
+                  <th>顾问</th>
+                  <th>车型</th>
+                  <th>客户关键词</th>
+                  <th>战败描述</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in loss_rows %}
+                <tr>
+                  <td>{{ r.loss_id }}</td>
+                  <td>{{ r.date }}</td>
+                  <td>{{ r.consultant }}</td>
+                  <td>{{ r.vehicle_model }}</td>
+                  <td>{{ r.customer_tags }}</td>
+                  <td>{{ r.loss_description }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <p class="muted">该日未抽取到战败记录。</p>
+          {% endif %}
+        </div>
+
+      {% else %}
+        <div class="hero-dark">
+          <p class="eyebrow">{{ day_label }} · {{ batch_count }} 个批次合并</p>
+          <p class="title">战败态势概要</p>
+          <p class="body">
+            {% if insight and insight.summary %}
+              {{ insight.summary }}
+            {% else %}
+              暂无汇总概要（可能该日无战败记录或分析未完成）。
+            {% endif %}
+          </p>
+        </div>
+
+        <div class="grid-stats">
+          <div class="stat-card">
+            <div class="k">战败条数</div>
+            <div class="v">{{ loss_rows|length }}</div>
+          </div>
+          <div class="stat-card">
+            <div class="k">涉及顾问</div>
+            <div class="v">{{ consultant_count }}</div>
+          </div>
+          <div class="stat-card">
+            <div class="k">涉及车型</div>
+            <div class="v">{{ vehicle_model_distinct }}</div>
+          </div>
+          <div class="stat-card">
+            <div class="k">主题数</div>
+            <div class="v" id="statThemes">—</div>
+          </div>
+        </div>
+
+        <div class="row2">
+          <div class="card">
+            <h2>战败原因主题分布</h2>
+            <canvas id="chartThemes"></canvas>
+          </div>
+          <div class="card">
+            <h2>顾问维度条数</h2>
+            <canvas id="chartConsultants"></canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>可能瓶颈</h2>
+          {% if insight and insight.bottlenecks %}
+          <ul class="clean">
+            {% for x in insight.bottlenecks %}
+            <li>{{ x }}</li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="muted">暂无瓶颈归纳。</p>
+          {% endif %}
+        </div>
+      {% endif %}
+
+      {% endif %}
+    </main>
   </div>
 
+  {% if latest_day and section == 'analysis' %}
   <script>
     (function () {
       const themeCounts = {{ theme_counts_json | safe }};
       const consultantCounts = {{ consultant_counts_json | safe }};
+      const themeKeys = Object.keys(themeCounts);
+      const consKeys = Object.keys(consultantCounts);
+      const elT = document.getElementById("statThemes");
+      if (elT) elT.textContent = String(themeKeys.length);
 
-      const labelsT = Object.keys(themeCounts);
-      const dataT = labelsT.map((k) => themeCounts[k]);
+      const tick = "#6b7a8a";
       const ctxT = document.getElementById("chartThemes");
-      if (ctxT && labelsT.length) {
+      if (ctxT && themeKeys.length) {
         new Chart(ctxT, {
           type: "bar",
           data: {
-            labels: labelsT,
-            datasets: [{ label: "条数（主题归纳）", data: dataT, backgroundColor: "rgba(61,139,253,0.55)" }],
+            labels: themeKeys,
+            datasets: [{
+              data: themeKeys.map((k) => themeCounts[k]),
+              backgroundColor: themeKeys.map((_, i) => (i % 2 === 0 ? "#1d3d52" : "#d5dee6")),
+              borderRadius: 8,
+              barThickness: 22,
+            }],
           },
           options: {
             responsive: true,
             plugins: { legend: { display: false } },
-            scales: { x: { ticks: { color: "#8b9cb3" } }, y: { ticks: { color: "#8b9cb3" }, beginAtZero: true } },
+            scales: {
+              x: { ticks: { color: tick }, grid: { display: false } },
+              y: { ticks: { color: tick }, beginAtZero: true, grid: { color: "rgba(21,32,43,0.06)" } },
+            },
           },
         });
       } else if (ctxT) {
-        ctxT.replaceWith(Object.assign(document.createElement("p"), { className: "empty", textContent: "暂无主题分布数据。" }));
+        ctxT.replaceWith(Object.assign(document.createElement("p"), { className: "muted", textContent: "暂无主题分布数据。" }));
       }
 
-      const labelsC = Object.keys(consultantCounts);
-      const dataC = labelsC.map((k) => consultantCounts[k]);
       const ctxC = document.getElementById("chartConsultants");
-      if (ctxC && labelsC.length) {
+      if (ctxC && consKeys.length) {
         new Chart(ctxC, {
           type: "doughnut",
           data: {
-            labels: labelsC,
-            datasets: [{ data: dataC, backgroundColor: ["#3d8bfd","#3ecf8e","#f0c14b","#c084fc","#f472b6","#22d3ee"] }],
+            labels: consKeys,
+            datasets: [{
+              data: consKeys.map((k) => consultantCounts[k]),
+              backgroundColor: ["#1d3d52", "#9ec0d4", "#f3efd8", "#f3e2ea", "#e8e6f4", "#2f9e6b"],
+              borderWidth: 0,
+            }],
           },
-          options: { responsive: true, plugins: { legend: { position: "bottom", labels: { color: "#8b9cb3" } } } },
+          options: {
+            responsive: true,
+            plugins: { legend: { position: "bottom", labels: { color: tick } } },
+          },
         });
       } else if (ctxC) {
-        ctxC.replaceWith(Object.assign(document.createElement("p"), { className: "empty", textContent: "暂无顾问分布。" }));
+        ctxC.replaceWith(Object.assign(document.createElement("p"), { className: "muted", textContent: "暂无顾问分布。" }));
       }
     })();
   </script>
+  {% endif %}
 </body>
 </html>
